@@ -1,0 +1,65 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = "your-dockerhub-username/your-image-name"
+    }
+
+    stages {
+        stage('Clone repository') {
+            steps {
+                git 'https://github.com/your-github-username/your-repo.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build(DOCKER_IMAGE)
+                }
+            }
+        }
+
+        stage('Run SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh 'mvn clean verify sonar:sonar'
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
+                        docker.image(DOCKER_IMAGE).push("${env.BUILD_NUMBER}")
+                    }
+                }
+            }
+        }
+
+        stage('OWASP Dependency-Check') {
+            steps {
+                sh 'dependency-check.sh --project "Your Project" --scan ./'
+                dependencyCheckPublisher pattern: 'dependency-check-report.xml'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    // Deployment steps, e.g., using Kubernetes or Docker Compose
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}
